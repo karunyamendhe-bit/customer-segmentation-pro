@@ -1,1 +1,287 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Customer Segmentation Pro | ML Analytics Studio</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+</head>
+<body>
 
+<!-- ══════════════════════════════ HEADER ══════════════════════════════ -->
+<header class="hero">
+  <div class="wrap">
+    <div class="hero-top">
+      <div class="badge-pill">CCE V · Machine Learning · D. Y. Patil College of Engineering, Akurdi</div>
+      <div class="theme-toggle" id="themeToggle" title="Toggle dark mode">🌙</div>
+    </div>
+    <h1>Customer Segmentation <span class="accent">Pro</span></h1>
+    <p class="sub">Advanced ML Pipeline: RFM + PCA + K-Means · CLV Prediction · Churn Risk · Market Basket Analysis · Anomaly Detection</p>
+    <div class="hero-badges">
+      <span class="chip">K-Means &amp; Hierarchical</span>
+      <span class="chip">PCA 3D Scatter</span>
+      <span class="chip">Apriori Rules</span>
+      <span class="chip">CLV Forecast</span>
+      <span class="chip">Churn Score</span>
+      <span class="chip">Anomaly Detection</span>
+      <span class="chip">Excel Export</span>
+    </div>
+  </div>
+</header>
+
+<!-- ══════════════════════════════ MAIN ════════════════════════════════ -->
+<main class="wrap" id="main">
+
+  <!-- ── Upload Card ── -->
+  <section class="card" id="upload">
+    <div class="card-header">
+      <span class="card-icon">📁</span>
+      <h2>1. Provide Transaction Data</h2>
+    </div>
+    <p class="hint">Upload a <strong>CSV or Excel</strong> file with columns:
+      <code>InvoiceNo, CustomerID, InvoiceDate, Description, Quantity, UnitPrice</code>
+      (UCI Online Retail format; extra columns are ignored).
+    </p>
+
+    <form id="form" novalidate>
+      <div class="upload-zone" id="dropZone">
+        <input type="file" id="file" name="file" accept=".csv,.xlsx,.xls" hidden>
+        <div class="upload-icon">📂</div>
+        <div class="upload-text">
+          <strong>Drag &amp; drop your file here</strong><br>
+          <span id="fileName" class="file-hint">or click to browse (CSV / Excel, max 100 MB)</span>
+        </div>
+        <button class="btn-outline" type="button" id="browseBtn">Browse File</button>
+      </div>
+
+      <div class="params-section">
+        <h3>⚙️ Algorithm &amp; Hyperparameters</h3>
+        <div class="params">
+          <label class="param-group">
+            <span class="param-label">Clustering Algorithm</span>
+            <select name="algorithm" id="algorithm">
+              <option value="kmeans" selected>K-Means (fast, scalable)</option>
+              <option value="hierarchical">Hierarchical / Agglomerative</option>
+            </select>
+          </label>
+          <label class="param-group">
+            <span class="param-label">Number of Segments (k)</span>
+            <select name="k" id="k">
+              <option value="auto" selected>Auto (best silhouette, k ≥ 3)</option>
+              <option>2</option><option>3</option><option>4</option>
+              <option>5</option><option>6</option><option>7</option><option>8</option>
+            </select>
+          </label>
+          <label class="param-group">
+            <span class="param-label">Min Support
+              <span class="tooltip" data-tip="Fraction of transactions containing the itemset">ⓘ</span>
+            </span>
+            <input type="number" name="min_support" value="0.05" step="0.01" min="0.01" max="1">
+          </label>
+          <label class="param-group">
+            <span class="param-label">Min Confidence
+              <span class="tooltip" data-tip="P(consequent | antecedent)">ⓘ</span>
+            </span>
+            <input type="number" name="min_conf" value="0.5" step="0.05" min="0.1" max="1">
+          </label>
+          <label class="param-group">
+            <span class="param-label">Min Lift
+              <span class="tooltip" data-tip="Values > 1 indicate items bought together more than by chance">ⓘ</span>
+            </span>
+            <input type="number" name="min_lift" value="1.1" step="0.1" min="1">
+          </label>
+        </div>
+      </div>
+
+      <div class="action-row">
+        <button class="btn btn-primary" type="submit">
+          <span class="btn-icon">🚀</span> Run Analysis on My File
+        </button>
+        <button class="btn btn-secondary" type="button" id="demo">
+          <span class="btn-icon">🎲</span> Run Demo (800 customers)
+        </button>
+        <a class="btn btn-ghost" href="/api/sample.csv">⬇ Sample CSV</a>
+      </div>
+      <div class="status-bar" id="statusBar" hidden>
+        <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+        <span id="status" class="status-text">Analysing…</span>
+      </div>
+    </form>
+    <p id="error" class="error" hidden></p>
+  </section>
+
+  <!-- ══════════════════ RESULTS (hidden until analysis runs) ═════════ -->
+  <div id="results" hidden>
+
+    <!-- ── Summary KPIs ── -->
+    <section class="card">
+      <div class="card-header">
+        <span class="card-icon">📊</span>
+        <h2>2. Data Summary &amp; Model Quality</h2>
+      </div>
+      <div class="kpis" id="kpis"></div>
+      <div class="meta-row" id="metaRow"></div>
+    </section>
+
+    <!-- ── Revenue Trend ── -->
+    <section class="card">
+      <div class="card-header">
+        <span class="card-icon">📈</span>
+        <h2>3. Revenue &amp; Customer Trend</h2>
+      </div>
+      <div class="grid2">
+        <div class="chartbox"><canvas id="revChart"></canvas></div>
+        <div class="chartbox"><canvas id="cohortChart"></canvas></div>
+      </div>
+    </section>
+
+    <!-- ── K Selection ── -->
+    <section class="card">
+      <div class="card-header">
+        <span class="card-icon">🔢</span>
+        <h2>4. Optimal Number of Segments</h2>
+      </div>
+      <p class="hint">Higher silhouette (↑) and lower Davies-Bouldin (↓) indicate better cluster separation. The elbow shows diminishing returns in inertia.</p>
+      <div class="grid2">
+        <div class="chartbox"><canvas id="kChart"></canvas></div>
+        <div class="chartbox"><canvas id="elbowChart"></canvas></div>
+      </div>
+    </section>
+
+    <!-- ── Scatter Plots ── -->
+    <section class="card">
+      <div class="card-header">
+        <span class="card-icon">🗺️</span>
+        <h2>5. Customer Segments in PCA Space</h2>
+      </div>
+      <div class="scatter-tabs">
+        <button class="stab on" data-view="2d">2D View</button>
+        <button class="stab" data-view="3d">3D View</button>
+      </div>
+      <div class="grid2">
+        <div class="chartbox" id="scatter2dBox"><canvas id="pcaChart"></canvas></div>
+        <div class="chartbox" id="scatter3dBox" hidden>
+          <canvas id="pca3dChart"></canvas>
+          <p class="hint" style="text-align:center;margin-top:6px">Rotate: drag · Zoom: scroll</p>
+        </div>
+        <div class="chartbox"><canvas id="sizeChart"></canvas></div>
+      </div>
+    </section>
+
+    <!-- ── Segment Profiles ── -->
+    <section class="card">
+      <div class="card-header">
+        <span class="card-icon">👥</span>
+        <h2>6. Segment Profiles &amp; Action Plan</h2>
+      </div>
+      <div class="segment-cards" id="segmentCards"></div>
+      <div class="tablewrap"><table id="profile" class="data-table"></table></div>
+      <div class="download-row">
+        <a id="dlCsv"   class="btn btn-ghost" href="#">⬇ CSV</a>
+        <a id="dlExcel" class="btn btn-ghost" href="#">⬇ Excel (Multi-sheet)</a>
+        <a id="dlJson"  class="btn btn-ghost" href="#">⬇ JSON</a>
+      </div>
+    </section>
+
+    <!-- ── CLV & Churn Radar ── -->
+    <section class="card">
+      <div class="card-header">
+        <span class="card-icon">🔮</span>
+        <h2>7. CLV Forecast &amp; Churn Risk</h2>
+      </div>
+      <div class="grid2">
+        <div class="chartbox"><canvas id="clvChart"></canvas></div>
+        <div class="chartbox"><canvas id="churnChart"></canvas></div>
+      </div>
+    </section>
+
+    <!-- ── Top Products ── -->
+    <section class="card">
+      <div class="card-header">
+        <span class="card-icon">🛒</span>
+        <h2>8. Top 15 Products by Revenue</h2>
+      </div>
+      <div class="chartbox" style="height:380px"><canvas id="topProdChart"></canvas></div>
+    </section>
+
+    <!-- ── Market Basket ── -->
+    <section class="card">
+      <div class="card-header">
+        <span class="card-icon">🧺</span>
+        <h2>9. Market Basket Rules (Apriori)</h2>
+      </div>
+      <p class="hint">
+        <b>Support</b>: joint occurrence rate ·
+        <b>Confidence</b>: P(B | A) ·
+        <b>Lift</b> &gt; 1: bought together more than by chance ·
+        <b>Leverage</b>: lift above independence ·
+        <b>Conviction</b>: directional strength
+      </p>
+      <div class="tabs" id="tabs"></div>
+      <div class="tablewrap"><table id="rules" class="data-table"></table></div>
+    </section>
+
+    <!-- ── Anomaly Detection ── -->
+    <section class="card">
+      <div class="card-header">
+        <span class="card-icon">⚠️</span>
+        <h2>10. Anomaly Detection</h2>
+      </div>
+      <p class="hint">Customers flagged by Isolation Forest as statistically unusual in spend, recency, or order frequency (contamination = 3%).</p>
+      <div class="kpis" id="anomalyKpis"></div>
+      <div class="chartbox"><canvas id="anomalyChart"></canvas></div>
+    </section>
+
+    <!-- ── Customer Lookup ── -->
+    <section class="card" id="lookupCard">
+      <div class="card-header">
+        <span class="card-icon">🔍</span>
+        <h2>11. Customer Lookup</h2>
+      </div>
+      <p class="hint">Search any Customer ID to see their full individual profile — segment, CLV forecast, churn risk, purchase behaviour, and a personalised recommendation.</p>
+      <div class="lookup-bar">
+        <div class="lookup-input-wrap">
+          <span class="lookup-icon">👤</span>
+          <input type="text" id="lookupInput" placeholder="Enter Customer ID  e.g. 10001" autocomplete="off" list="customerList">
+          <datalist id="customerList"></datalist>
+        </div>
+        <button class="btn btn-primary" id="lookupBtn" type="button">
+          <span class="btn-icon">🔍</span> Search
+        </button>
+        <button class="btn btn-ghost" id="lookupRandom" type="button">🎲 Random</button>
+      </div>
+      <p id="lookupError" class="error" hidden></p>
+      <div id="lookupResult" hidden>
+        <div class="profile-card" id="profileCard">
+          <!-- filled by JS -->
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Business Insights ── -->
+    <section class="card">
+      <div class="card-header">
+        <span class="card-icon">💡</span>
+        <h2>12. Auto-Generated Business Insights</h2>
+      </div>
+      <ul id="insights" class="insights"></ul>
+    </section>
+
+  </div><!-- /results -->
+</main>
+
+<footer class="foot">
+  <div class="wrap foot-inner">
+    <span>Pipeline: clean → Extended RFM (10 features) → log₁₊ scale → StandardScaler → PCA(3) → K-Means / Hierarchical → CLV (GBM) → Churn Risk → Apriori per segment → Isolation Forest</span>
+    <span class="foot-right">Customer Segmentation Pro · CCE V · D. Y. Patil College of Engineering, Akurdi</span>
+  </div>
+</footer>
+
+<div class="tooltip-popup" id="tooltipPopup"></div>
+
+<!-- Chart.js -->
+<script src="{{ url_for('static', filename='vendor/chart.umd.js') }}"></script>
+<script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>
